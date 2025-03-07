@@ -1,0 +1,42 @@
+version: '3'
+
+services:
+  hierarchical_3d_gaussians:
+    container_name: hierarchical_3d_gaussians
+    build:
+      context: .
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+    volumes:
+      - ${PWD}:/host
+      - ./data/:/data
+    ports:
+      - "6009:6009"
+    ipc: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash"]
+    networks:
+      - main
+    environment:
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - NO_PROXY=localhost,127.0.0.1
+      - http_proxy=http://host.docker.internal:7897
+      - https_proxy=http://host.docker.internal:7897
+      - no_proxy=localhost,127.0.0.1
+
+networks:
+  main:
+    driver: bridge
+
