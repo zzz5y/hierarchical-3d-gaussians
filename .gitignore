@@ -4,3 +4,7 @@ output
 build
 tensorboard_3d
 screenshots
+
+data
+submodules
+SIBR_viewers
