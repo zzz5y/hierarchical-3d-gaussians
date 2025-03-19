@@ -33,7 +33,7 @@ semantic_classes = [
     'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
     'bicycle'
 ]
-dataset_classes_in_sematic = {
+dataset_classes_in_semantic = {
     'Vehicle': [13, 14, 15],   # 'car', 'truck', 'bus'
     'human': [11, 12, 17, 18], # 'person', 'rider', 'motorcycle', 'bicycle'
 }
@@ -109,12 +109,14 @@ if __name__ == "__main__":
 
     for scene_i, scene_id in enumerate(tqdm(scene_ids_list, f'Extracting Masks ...')):
         scene_id = str(scene_id).zfill(3)
-        img_dir = os.path.join(args.data_root, scene_id, args.rgb_dirname)
-        print(f"img_dir:{img_dir}")
+        img_base_dir = os.path.join(args.data_root, scene_id, args.rgb_dirname)
+        print(f"img_base_dir:{img_base_dir}")
+
         # create mask dir
         sky_mask_dir = os.path.join(args.data_root, scene_id, "sky_masks")
         if not os.path.exists(sky_mask_dir):
             os.makedirs(sky_mask_dir)
+
         # create dynamic mask dir
         if args.process_dynamic_mask:
             rough_human_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "human")
@@ -122,54 +124,81 @@ if __name__ == "__main__":
             all_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "all")
             if not os.path.exists(all_mask_dir):
                 os.makedirs(all_mask_dir)
+
             human_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "human")
             if not os.path.exists(human_mask_dir):
                 os.makedirs(human_mask_dir)
+
             vehicle_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "vehicle")
             if not os.path.exists(vehicle_mask_dir):
                 os.makedirs(vehicle_mask_dir)
 
-        flist = sorted(glob(os.path.join(img_dir, '*')))
-        for fpath in tqdm(flist, f'scene[{scene_id}]'):
-            fbase = os.path.splitext(os.path.basename(os.path.normpath(fpath)))[0]
+        # 遍历每个文件夹（如 CAM_E, CAM_F, ...）
+        camera_dirs = ['CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
+        for cam_dir in camera_dirs:
+            img_dir = os.path.join(img_base_dir, cam_dir)
+            print(f"Processing images in: {img_dir}")
 
-            # if args.no_compress:
-            #     mask_fpath = os.path.join(mask_dir, f"{fbase}.npy")
-            # else:
-            #     mask_fpath = os.path.join(mask_dir, f"{fbase}.npz")
+            # 获取文件夹中的所有图像文件（假设图像是 .png 格式）
+            flist = sorted(glob(os.path.join(img_dir, '*.png')))  # 或者 '*.jpg' 根据文件格式调整
+            for fpath in tqdm(flist, f'scene[{scene_id}]'):
+                fbase = os.path.splitext(os.path.basename(os.path.normpath(fpath)))[0]
+                print('fbase: ', fbase)
 
-            if args.ignore_existing and os.path.exists(os.path.join(args.data_root, scene_id, "fine_dynamic_masks")):
-                continue
+                # 如果已有掩码存在并且忽略现有掩码的选项被启用，跳过当前图像
+                if args.ignore_existing and os.path.exists(os.path.join(args.data_root, scene_id, "fine_dynamic_masks")):
+                    continue
 
-            #---- Inference and save outputs
-            result = inference_segmentor(model, fpath)
-            mask = result[0].astype(np.uint8)   # NOTE: in the settings of "cityscapes", there are 19 classes at most.
-            # if args.no_compress:
-            #     np.save(mask_fpath, mask)
-            # else:
-            #     np.savez_compressed(mask_fpath, mask)   # NOTE: compressed files are 100x smaller.
+                # ---- Inference and save outputs
+                result = inference_segmentor(model, fpath)
+                mask = result[0].astype(np.uint8)   # NOTE: in the settings of "cityscapes", there are 19 classes at most.
 
-            # save sky mask
-            sky_mask = np.isin(mask, [10])
-            imageio.imwrite(os.path.join(sky_mask_dir, f"{fbase}.png"), sky_mask.astype(np.uint8)*255)
+                # 保存 sky mask
+                sky_mask = np.isin(mask, [10])  # 选择 sky 类别（假设是 10）
+                if not os.path.exists(sky_mask_dir):  # 创建目录
+                    os.makedirs(sky_mask_dir)
+                imageio.imwrite(os.path.join(sky_mask_dir, f"{fbase}.png"), sky_mask.astype(np.uint8)*255)
 
-            if args.process_dynamic_mask:
-                # 保存 human masks（取反）
-                rough_human_mask_path = os.path.join(rough_human_mask_dir, f"{fbase}.png")
-                rough_human_mask = (imageio.imread(rough_human_mask_path) > 0)
-                human_mask = np.isin(mask, dataset_classes_in_sematic['human'])
-                valid_human_mask = np.logical_and(human_mask, rough_human_mask)
-                valid_human_mask = np.logical_not(valid_human_mask)
-                imageio.imwrite(os.path.join(human_mask_dir, f"{fbase}.png"), valid_human_mask.astype(np.uint8)*255)
+                if args.process_dynamic_mask:
+                    # 处理 human masks，首先检查是否存在 rough_human_mask
+                    rough_human_mask_path = os.path.join(rough_human_mask_dir, f"{fbase}.png")
+                    if os.path.exists(rough_human_mask_path):
+                        rough_human_mask = (imageio.imread(rough_human_mask_path) > 0)
+                        human_mask = np.isin(mask, dataset_classes_in_semantic['human'])
+                        valid_human_mask = np.logical_and(human_mask, rough_human_mask)
+                        valid_human_mask = np.logical_not(valid_human_mask)
+                    else:
+                        # 如果没有 rough_human_mask，则直接使用预测的 human mask
+                        valid_human_mask = np.isin(mask, dataset_classes_in_semantic['human'])
+                    
+                    # 创建目录
+                    if not os.path.exists(human_mask_dir):
+                        os.makedirs(human_mask_dir)
 
-                # 保存 vehicle mask（取反）
-                rough_vehicle_mask_path = os.path.join(rough_vehicle_mask_dir, f"{fbase}.png")
-                rough_vehicle_mask = (imageio.imread(rough_vehicle_mask_path) > 0)
-                vehicle_mask = np.isin(mask, dataset_classes_in_sematic['Vehicle'])
-                valid_vehicle_mask = np.logical_and(vehicle_mask, rough_vehicle_mask)
-                valid_vehicle_mask = np.logical_not(valid_vehicle_mask)
-                imageio.imwrite(os.path.join(vehicle_mask_dir, f"{fbase}.png"), valid_vehicle_mask.astype(np.uint8)*255)
+                    imageio.imwrite(os.path.join(human_mask_dir, f"{fbase}.png"), valid_human_mask.astype(np.uint8)*255)
 
-                # 保存 dynamic mask，不再取反
-                valid_all_mask = np.logical_or(valid_human_mask, valid_vehicle_mask)
-                imageio.imwrite(os.path.join(all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
+                    # 处理 vehicle masks，首先检查是否存在 rough_vehicle_mask
+                    rough_vehicle_mask_path = os.path.join(rough_vehicle_mask_dir, f"{fbase}.png")
+                    if os.path.exists(rough_vehicle_mask_path):
+                        rough_vehicle_mask = (imageio.imread(rough_vehicle_mask_path) > 0)
+                        vehicle_mask = np.isin(mask, dataset_classes_in_semantic['Vehicle'])
+                        valid_vehicle_mask = np.logical_and(vehicle_mask, rough_vehicle_mask)
+                        valid_vehicle_mask = np.logical_not(valid_vehicle_mask)
+                    else:
+                        # 如果没有 rough_vehicle_mask，则直接使用预测的 vehicle mask
+                        valid_vehicle_mask = np.isin(mask, dataset_classes_in_semantic['Vehicle'])
+
+                    # 创建目录
+                    if not os.path.exists(vehicle_mask_dir):
+                        os.makedirs(vehicle_mask_dir)
+
+                    imageio.imwrite(os.path.join(vehicle_mask_dir, f"{fbase}.png"), valid_vehicle_mask.astype(np.uint8)*255)
+
+                    # 保存 dynamic mask，不再取反
+                    valid_all_mask = np.logical_or(valid_human_mask, valid_vehicle_mask)
+
+                    # 创建目录
+                    if not os.path.exists(all_mask_dir):
+                        os.makedirs(all_mask_dir)
+
+                    imageio.imwrite(os.path.join(all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
