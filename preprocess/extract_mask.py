@@ -87,13 +87,11 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint', help='Checkpoint file', type=str, default=None)
     parser.add_argument('--device', default='cuda:0', help='Device used for inference')
     parser.add_argument('--palette', default='cityscapes', help='Color palette used for segmentation map')
-
     args = parser.parse_args()
     if args.config is None:
         args.config = os.path.join(args.segformer_path, 'local_configs', 'segformer', 'B5', 'segformer.b5.1024x1024.city.160k.py')
     if args.checkpoint is None:
         args.checkpoint = os.path.join(args.segformer_path, 'pretrained', 'segformer.b5.1024x1024.city.160k.pth')
-
     if args.scene_ids is not None:
         scene_ids_list = args.scene_ids
     elif args.split_file is not None:
@@ -117,12 +115,10 @@ if __name__ == "__main__":
         sky_mask_dir = os.path.join(args.data_root, scene_id, "sky_masks")
         if not os.path.exists(sky_mask_dir):
             os.makedirs(sky_mask_dir)
-
         # create dynamic mask dir
         if args.process_dynamic_mask:
             rough_human_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "human")
             rough_vehicle_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "vehicle")
-
             all_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "all")
             if not os.path.exists(all_mask_dir):
                 os.makedirs(all_mask_dir)
