@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--ignore_existing', action='store_true')
     parser.add_argument('--no_compress', action='store_true')
-    parser.add_argument('--rgb_dirname', type=str, default="images")
+    parser.add_argument('--rgb_dirname', type=str, default="inputs/images")
     parser.add_argument('--mask_dirname', type=str, default="fine_dynamic_masks")
 
     # Algorithm configs
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     for scene_i, scene_id in enumerate(tqdm(scene_ids_list, f'Extracting Masks ...')):
         scene_id = str(scene_id).zfill(3)
         img_dir = os.path.join(args.data_root, scene_id, args.rgb_dirname)
-
+        print(f"img_dir:{img_dir}")
         # create mask dir
         sky_mask_dir = os.path.join(args.data_root, scene_id, "sky_masks")
         if not os.path.exists(sky_mask_dir):
