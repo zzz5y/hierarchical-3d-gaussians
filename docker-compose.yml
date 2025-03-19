@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  hierarchical_3d_gaussians:
+    container_name: hierarchical_3d_gaussians
+    build:
+      context: .
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+    volumes:
+      - ${PWD}:/host
+      #- ./data/:/data
+      - /data/zsy_data/h3dgs_data/data:/data   # 将主机的实际路径挂载到容器内的 /data
+    ports:
+      - "6009:6009"
+    ipc: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash"]
+    networks:
+      - main
+    environment:
+      - NO_PROXY=localhost,127.0.0.1
+      - no_proxy=localhost,127.0.0.1
+
+networks:
+  main:
+    driver: bridge
+

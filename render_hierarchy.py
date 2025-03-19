@@ -68,6 +68,9 @@ def render_set(args, scene, pipe, out_dir, tau, eval):
         indices = render_indices[:to_render].int().contiguous()
         node_indices = nodes_for_render_indices[:to_render].contiguous()
 
+        
+        
+        
         get_interpolation_weights(
             node_indices,
             threshold,

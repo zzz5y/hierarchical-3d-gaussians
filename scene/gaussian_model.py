@@ -23,6 +23,7 @@ from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from gaussian_hierarchy._C import load_hierarchy, write_hierarchy
 from scene.OurAdam import Adam
+from tqdm import tqdm  # 进度条库
 
 class GaussianModel:
 
@@ -488,25 +489,145 @@ class GaussianModel:
             f.write(rotation.numpy().tobytes())
 
 
-    def save_ply(self, path):
+    def save_ply(self, path,indices=None):
         mkdir_p(os.path.dirname(path))
 
         xyz = self._xyz.detach().cpu().numpy()
         normals = np.zeros_like(xyz)
-        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = self._opacity.detach().cpu().numpy()
+        f_dc = self._features_dc.to("cuda:1").detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        f_rest = self._features_rest.to("cuda:1").detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        opacities = self._opacity.detach().cpu().numpy().reshape(-1, 1)
         scale = self._scaling.detach().cpu().numpy()
         rotation = self._rotation.detach().cpu().numpy()
-
+        
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
 
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        print(f"xyz shape: {xyz.shape}")
+        print(f"normals shape: {normals.shape}")
+        print(f"f_dc shape: {f_dc.shape}")
+        print(f"f_rest shape: {f_rest.shape}")
+        print(f"opacities shape: {opacities.shape}")
+        print(f"scale shape: {scale.shape}")
+        print(f"rotation shape: {rotation.shape}")
+        # Apply filtering based on indices
+        if indices is not None:
+            #xyz = xyz[indices]  # Filter xyz
+            #normals = normals[indices]  # Filter normals
+            f_dc = f_dc[indices]  # Filter f_dc
+            f_rest = f_rest[indices]  # Filter f_rest
+            #opacities = opacities[indices].reshape(-1, 1)  # Filter opacities
+            #scale = scale[indices]  # Filter scale
+            #rotation = rotation[indices]  # Filter rotation
+        print(f"xyz shape: {xyz.shape}")
+        print(f"normals shape: {normals.shape}")
+        print(f"f_dc shape: {f_dc.shape}")
+        print(f"f_rest shape: {f_rest.shape}")
+        print(f"opacities shape: {opacities.shape}")
+        print(f"scale shape: {scale.shape}")
+        print(f"rotation shape: {rotation.shape}")
+        
         attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
 
+    
+    def save_ply_chunk(self, final_path, chunk_size=5_000_000,indices=None):
+        """
+        将数据分块写入独立的 PLY 文件，文件命名为 chunk_{chunk_id}.ply，
+        返回所有 chunk 文件的路径列表。
+        
+        参数:
+            final_path: 最终合并文件的路径（用于确定基路径）。
+            chunk_size: 每个 chunk 包含的数据点数量。
+        """
+        base_dir = os.path.dirname(final_path)
+        mkdir_p(base_dir)
+        
+        num_points = self._xyz.shape[0]  # 总点数
+        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+        
+        print(f"Total points: {num_points}, Chunk size: {chunk_size}")
+        chunk_files = []
+        # Apply filtering based on indices
+        if indices is not None:
+            print(f"xyz shape: {xyz.shape}")
+            print(f"normals shape: {normals.shape}")
+            print(f"f_dc shape: {f_dc.shape}")
+            print(f"f_rest shape: {f_rest.shape}")
+            print(f"opacities shape: {opacities.shape}")
+            print(f"scale shape: {scale.shape}")
+            print(f"rotation shape: {rotation.shape}")
+            self._features_dc = self._features_dc[indices]  # Filter f_dc
+            self._features_rest = self._features_rest[indices]  # Filter f_rest
+            print(f"xyz shape: {xyz.shape}")
+            print(f"normals shape: {normals.shape}")
+            print(f"f_dc shape: {f_dc.shape}")
+            print(f"f_rest shape: {f_rest.shape}")
+            print(f"opacities shape: {opacities.shape}")
+            print(f"scale shape: {scale.shape}")
+            print(f"rotation shape: {rotation.shape}")
+            
+        # 按 chunk 分块处理
+        for chunk_id, start in enumerate(tqdm(range(0, num_points, chunk_size), desc="Saving PLY chunks", unit="chunk")):
+            end = min(start + chunk_size, num_points)
+            print(f"Processing chunk {start} to {end}...")
+            
+            # 获取当前 chunk 的各个数据
+            xyz = self._xyz[start:end].detach().cpu().numpy()
+            normals = np.zeros_like(xyz)
+            f_dc = self._features_dc[start:end].detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            f_rest = self._features_rest[start:end].detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            opacities = self._opacity[start:end].detach().cpu().numpy().reshape(-1, 1)
+            scale = self._scaling[start:end].detach().cpu().numpy()
+            rotation = self._rotation[start:end].detach().cpu().numpy()
+            
+            # 拼接所有属性，注意顺序要和 construct_list_of_attributes() 一致
+            attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+            elements = np.empty(len(attributes), dtype=dtype_full)
+            elements[:] = list(map(tuple, attributes))
+            el = PlyElement.describe(elements, 'vertex')
+            
+            # 构造 chunk 文件路径
+            chunk_file = os.path.join(base_dir, f"chunk_{chunk_id}.ply")
+            chunk_files.append(chunk_file)
+            
+            # 写入当前 chunk 文件（文本格式）
+            PlyData([el], text=False).write(chunk_file)
+            
+            # 释放内存
+            del xyz, normals, f_dc, f_rest, opacities, scale, rotation, elements
+            torch.cuda.empty_cache()
+            print(f"Chunk {chunk_id} ({start}-{end}) saved to {chunk_file}.")
+        
+        print("All chunks saved.")
+        return chunk_files
+
+    def merge_chunks(self,chunk_files, merged_file):
+        """
+        合并所有 chunk 文件为一个最终的 PLY 文件。
+        
+        参数:
+            chunk_files: 包含所有 chunk 文件路径的列表。
+            merged_file: 最终合并文件的保存路径。
+        """
+        all_data = []
+        for fname in chunk_files:
+            print(f"Reading {fname} ...")
+            plydata = PlyData.read(fname)
+            vertex_data = plydata['vertex'].data  # 假设数据存储在 'vertex' 元素中
+            all_data.append(vertex_data)
+        
+        merged_data = np.concatenate(all_data, axis=0)
+        print(f"Total merged points: {merged_data.shape[0]}")
+        
+        merged_element = PlyElement.describe(merged_data, 'vertex')
+        PlyData([merged_element], text=True).write(merged_file)
+        print(f"Merged file written to {merged_file}")
+    
+    
+    
     def reset_opacity(self):
         opacities_new = torch.cat((self._opacity[:self.skybox_points], inverse_sigmoid(torch.min(self.get_opacity[self.skybox_points:], torch.ones_like(self.get_opacity[self.skybox_points:])*0.01))), 0)
         #opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
