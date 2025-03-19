@@ -134,4 +134,3 @@ class CameraDataset(torch.utils.data.Dataset):
         X = loadCam(self.args, index, info, self.resolution_scales, self.is_test)
 
         return X
-  
