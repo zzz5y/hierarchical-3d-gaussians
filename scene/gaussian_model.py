@@ -552,22 +552,12 @@ class GaussianModel:
         chunk_files = []
         # Apply filtering based on indices
         if indices is not None:
-            print(f"xyz shape: {xyz.shape}")
-            print(f"normals shape: {normals.shape}")
-            print(f"f_dc shape: {f_dc.shape}")
-            print(f"f_rest shape: {f_rest.shape}")
-            print(f"opacities shape: {opacities.shape}")
-            print(f"scale shape: {scale.shape}")
-            print(f"rotation shape: {rotation.shape}")
+            print(f"self._features_dc shape: {self._features_dc.shape}")
+            print(f"self._features_rest shape: {self._features_rest.shape}")
             self._features_dc = self._features_dc[indices]  # Filter f_dc
             self._features_rest = self._features_rest[indices]  # Filter f_rest
-            print(f"xyz shape: {xyz.shape}")
-            print(f"normals shape: {normals.shape}")
-            print(f"f_dc shape: {f_dc.shape}")
-            print(f"f_rest shape: {f_rest.shape}")
-            print(f"opacities shape: {opacities.shape}")
-            print(f"scale shape: {scale.shape}")
-            print(f"rotation shape: {rotation.shape}")
+            print(f"self._features_dc shape: {self._features_dc.shape}")
+            print(f"self._features_rest shape: {self._features_rest.shape}")
             
         # 按 chunk 分块处理
         for chunk_id, start in enumerate(tqdm(range(0, num_points, chunk_size), desc="Saving PLY chunks", unit="chunk")):
@@ -603,30 +593,6 @@ class GaussianModel:
         
         print("All chunks saved.")
         return chunk_files
-
-    def merge_chunks(self,chunk_files, merged_file):
-        """
-        合并所有 chunk 文件为一个最终的 PLY 文件。
-        
-        参数:
-            chunk_files: 包含所有 chunk 文件路径的列表。
-            merged_file: 最终合并文件的保存路径。
-        """
-        all_data = []
-        for fname in chunk_files:
-            print(f"Reading {fname} ...")
-            plydata = PlyData.read(fname)
-            vertex_data = plydata['vertex'].data  # 假设数据存储在 'vertex' 元素中
-            all_data.append(vertex_data)
-        
-        merged_data = np.concatenate(all_data, axis=0)
-        print(f"Total merged points: {merged_data.shape[0]}")
-        
-        merged_element = PlyElement.describe(merged_data, 'vertex')
-        PlyData([merged_element], text=True).write(merged_file)
-        print(f"Merged file written to {merged_file}")
-    
-    
     
     def reset_opacity(self):
         opacities_new = torch.cat((self._opacity[:self.skybox_points], inverse_sigmoid(torch.min(self.get_opacity[self.skybox_points:], torch.ones_like(self.get_opacity[self.skybox_points:])*0.01))), 0)
