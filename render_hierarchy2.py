@@ -168,7 +168,7 @@ def render_set_export_ply_by_set(args, scene, pipe, out_dir, tau, eval):
     unique_indices = torch.tensor(list(all_indices), dtype=torch.long).cuda()
 
 
-    if len(list(all_indices))==0:
+    if len(list(all_indices))!= 0:
         # 从 scene 中提取数据
         xyz_arr = scene.gaussians._xyz[unique_indices].cpu().numpy()
         opacities_arr = scene.gaussians._opacity[unique_indices].cpu().numpy().reshape(-1)
@@ -182,7 +182,7 @@ def render_set_export_ply_by_set(args, scene, pipe, out_dir, tau, eval):
         rotations_arr = scene.gaussians._rotation.cpu().numpy()
 
 
-    # 使用 HDF5 存储
+    #使用 HDF5 存储
     with h5py.File(h5_file_path, "a") as f:
         # 如果文件中不存在数据集，则创建它们
         if 'xyz' not in f:

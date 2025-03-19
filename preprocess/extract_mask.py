@@ -112,12 +112,12 @@ if __name__ == "__main__":
         img_base_dir = os.path.join(args.data_root, scene_id, args.rgb_dirname)
         print(f"img_base_dir:{img_base_dir}")
 
-        # create mask dir
+        # 创建掩码目录
         sky_mask_dir = os.path.join(args.data_root, scene_id, "sky_masks")
         if not os.path.exists(sky_mask_dir):
             os.makedirs(sky_mask_dir)
 
-        # create dynamic mask dir
+        # 创建动态掩码目录
         if args.process_dynamic_mask:
             rough_human_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "human")
             rough_vehicle_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "vehicle")
@@ -153,14 +153,21 @@ if __name__ == "__main__":
                 result = inference_segmentor(model, fpath)
                 mask = result[0].astype(np.uint8)   # NOTE: in the settings of "cityscapes", there are 19 classes at most.
 
+                # 创建CAM对应的掩码目录
+                cam_sky_mask_dir = os.path.join(sky_mask_dir, cam_dir)
+                if not os.path.exists(cam_sky_mask_dir):
+                    os.makedirs(cam_sky_mask_dir)
+
                 # 保存 sky mask
                 sky_mask = np.isin(mask, [10])  # 选择 sky 类别（假设是 10）
-                if not os.path.exists(sky_mask_dir):  # 创建目录
-                    os.makedirs(sky_mask_dir)
-                imageio.imwrite(os.path.join(sky_mask_dir, f"{fbase}.png"), sky_mask.astype(np.uint8)*255)
+                imageio.imwrite(os.path.join(cam_sky_mask_dir, f"{fbase}.png"), sky_mask.astype(np.uint8)*255)
 
                 if args.process_dynamic_mask:
                     # 处理 human masks，首先检查是否存在 rough_human_mask
+                    cam_human_mask_dir = os.path.join(human_mask_dir, cam_dir)
+                    if not os.path.exists(cam_human_mask_dir):
+                        os.makedirs(cam_human_mask_dir)
+
                     rough_human_mask_path = os.path.join(rough_human_mask_dir, f"{fbase}.png")
                     if os.path.exists(rough_human_mask_path):
                         rough_human_mask = (imageio.imread(rough_human_mask_path) > 0)
@@ -170,14 +177,14 @@ if __name__ == "__main__":
                     else:
                         # 如果没有 rough_human_mask，则直接使用预测的 human mask
                         valid_human_mask = np.isin(mask, dataset_classes_in_semantic['human'])
-                    
-                    # 创建目录
-                    if not os.path.exists(human_mask_dir):
-                        os.makedirs(human_mask_dir)
 
-                    imageio.imwrite(os.path.join(human_mask_dir, f"{fbase}.png"), valid_human_mask.astype(np.uint8)*255)
+                    imageio.imwrite(os.path.join(cam_human_mask_dir, f"{fbase}.png"), valid_human_mask.astype(np.uint8)*255)
 
                     # 处理 vehicle masks，首先检查是否存在 rough_vehicle_mask
+                    cam_vehicle_mask_dir = os.path.join(vehicle_mask_dir, cam_dir)
+                    if not os.path.exists(cam_vehicle_mask_dir):
+                        os.makedirs(cam_vehicle_mask_dir)
+
                     rough_vehicle_mask_path = os.path.join(rough_vehicle_mask_dir, f"{fbase}.png")
                     if os.path.exists(rough_vehicle_mask_path):
                         rough_vehicle_mask = (imageio.imread(rough_vehicle_mask_path) > 0)
@@ -188,17 +195,13 @@ if __name__ == "__main__":
                         # 如果没有 rough_vehicle_mask，则直接使用预测的 vehicle mask
                         valid_vehicle_mask = np.isin(mask, dataset_classes_in_semantic['Vehicle'])
 
-                    # 创建目录
-                    if not os.path.exists(vehicle_mask_dir):
-                        os.makedirs(vehicle_mask_dir)
-
-                    imageio.imwrite(os.path.join(vehicle_mask_dir, f"{fbase}.png"), valid_vehicle_mask.astype(np.uint8)*255)
+                    imageio.imwrite(os.path.join(cam_vehicle_mask_dir, f"{fbase}.png"), valid_vehicle_mask.astype(np.uint8)*255)
 
                     # 保存 dynamic mask，不再取反
                     valid_all_mask = np.logical_or(valid_human_mask, valid_vehicle_mask)
 
-                    # 创建目录
-                    if not os.path.exists(all_mask_dir):
-                        os.makedirs(all_mask_dir)
+                    cam_all_mask_dir = os.path.join(all_mask_dir, cam_dir)
+                    if not os.path.exists(cam_all_mask_dir):
+                        os.makedirs(cam_all_mask_dir)
 
-                    imageio.imwrite(os.path.join(all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
+                    imageio.imwrite(os.path.join(cam_all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
