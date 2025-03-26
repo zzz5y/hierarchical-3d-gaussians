@@ -23,7 +23,6 @@ Usage:
     Direct run this script in the newly set conda env.
 """
 
-
 from mmseg.apis import inference_segmentor, init_segmentor, show_result_pyplot
 from mmseg.core.evaluation import get_palette
 
@@ -134,7 +133,7 @@ if __name__ == "__main__":
                 os.makedirs(vehicle_mask_dir)
 
         # 遍历每个文件夹（如 CAM_E, CAM_F, ...）
-        camera_dirs = ['CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
+        camera_dirs = ['CAM_A','CAM_B','CAM_C','CAM_D','CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
         for cam_dir in camera_dirs:
             img_dir = os.path.join(img_base_dir, cam_dir)
             print(f"Processing images in: {img_dir}")
@@ -160,6 +159,7 @@ if __name__ == "__main__":
 
                 # 保存 sky mask
                 sky_mask = np.isin(mask, [10])  # 选择 sky 类别（假设是 10）
+                sky_mask = np.logical_not(sky_mask)  # 反转 sky mask
                 imageio.imwrite(os.path.join(cam_sky_mask_dir, f"{fbase}.png"), sky_mask.astype(np.uint8)*255)
 
                 if args.process_dynamic_mask:
@@ -178,6 +178,8 @@ if __name__ == "__main__":
                         # 如果没有 rough_human_mask，则直接使用预测的 human mask
                         valid_human_mask = np.isin(mask, dataset_classes_in_semantic['human'])
 
+                    # 反转 human mask
+                    valid_human_mask = np.logical_not(valid_human_mask)
                     imageio.imwrite(os.path.join(cam_human_mask_dir, f"{fbase}.png"), valid_human_mask.astype(np.uint8)*255)
 
                     # 处理 vehicle masks，首先检查是否存在 rough_vehicle_mask
@@ -195,13 +197,17 @@ if __name__ == "__main__":
                         # 如果没有 rough_vehicle_mask，则直接使用预测的 vehicle mask
                         valid_vehicle_mask = np.isin(mask, dataset_classes_in_semantic['Vehicle'])
 
+                    # 反转 vehicle mask
+                    valid_vehicle_mask = np.logical_not(valid_vehicle_mask)
                     imageio.imwrite(os.path.join(cam_vehicle_mask_dir, f"{fbase}.png"), valid_vehicle_mask.astype(np.uint8)*255)
 
-                    # 保存 dynamic mask，不再取反
-                    valid_all_mask = np.logical_or(valid_human_mask, valid_vehicle_mask)
+                    # 计算 valid_all_mask，取 valid_human_mask 和 valid_vehicle_mask 的交集
+                    valid_all_mask = np.logical_and(valid_human_mask, valid_vehicle_mask)
 
+                    # 保存交集后的 all mask
                     cam_all_mask_dir = os.path.join(all_mask_dir, cam_dir)
                     if not os.path.exists(cam_all_mask_dir):
                         os.makedirs(cam_all_mask_dir)
 
+                    # 不再取反 all mask
                     imageio.imwrite(os.path.join(cam_all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
