@@ -120,7 +120,8 @@ if __name__ == "__main__":
         if args.process_dynamic_mask:
             rough_human_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "human")
             rough_vehicle_mask_dir = os.path.join(args.data_root, scene_id, "dynamic_masks", "vehicle")
-            all_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "all")
+            all_mask_dir = os.path.join(args.data_root, scene_id, "inputs", "masks")
+            inputs_with_masks= os.path.join(args.data_root, scene_id, "inputs", "images_with_mask")
             if not os.path.exists(all_mask_dir):
                 os.makedirs(all_mask_dir)
 
@@ -131,13 +132,18 @@ if __name__ == "__main__":
             vehicle_mask_dir = os.path.join(args.data_root, scene_id, "fine_dynamic_masks", "vehicle")
             if not os.path.exists(vehicle_mask_dir):
                 os.makedirs(vehicle_mask_dir)
-
+        
         # 遍历每个文件夹（如 CAM_E, CAM_F, ...）
         camera_dirs = ['CAM_A','CAM_B','CAM_C','CAM_D','CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
         for cam_dir in camera_dirs:
             img_dir = os.path.join(img_base_dir, cam_dir)
             print(f"Processing images in: {img_dir}")
 
+            # 为 inputs_with_masks 下对应的摄像头创建文件夹
+            cam_inputs_with_masks_dir = os.path.join(inputs_with_masks, cam_dir)
+            if not os.path.exists(cam_inputs_with_masks_dir):
+                os.makedirs(cam_inputs_with_masks_dir)
+            
             # 获取文件夹中的所有图像文件（假设图像是 .png 格式）
             flist = sorted(glob(os.path.join(img_dir, '*.png')))  # 或者 '*.jpg' 根据文件格式调整
             for fpath in tqdm(flist, f'scene[{scene_id}]'):
@@ -211,3 +217,20 @@ if __name__ == "__main__":
 
                     # 不再取反 all mask
                     imageio.imwrite(os.path.join(cam_all_mask_dir, f"{fbase}.png"), valid_all_mask.astype(np.uint8)*255)
+
+                    
+                    # --- 根据交集 mask 覆盖原图（用黑色遮盖）并保存到 inputs_with_masks 目录 ---
+                    orig_img = imageio.imread(fpath)
+                    # 如果原图为灰度图，则转换为3通道
+                    if len(orig_img.shape) == 2:
+                        orig_img = np.stack([orig_img] * 3, axis=-1)
+
+                    # valid_all_mask 为 2D 布尔数组，扩展到3通道
+                    mask_3ch = np.stack([valid_all_mask] * 3, axis=-1)
+                    # 直接将交集区域设为黑色
+                    overlay_img = orig_img.copy()
+                    overlay_img[mask_3ch] = 0  # 黑色 [0, 0, 0]
+
+                    # 保存覆盖 mask 后的图像到 inputs_with_masks 对应摄像头文件夹
+                    output_path = os.path.join(cam_inputs_with_masks_dir, f"{fbase}.png")
+                    imageio.imwrite(output_path, overlay_img)
