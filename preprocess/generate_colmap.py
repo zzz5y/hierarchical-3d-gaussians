@@ -74,13 +74,25 @@ if __name__ == '__main__':
 
     ## Feature extraction, matching then mapper to generate the colmap.
     print("extracting features ...")
+    # colmap_feature_extractor_args = [
+    #     colmap_exe, "feature_extractor",
+    #     "--database_path", f"{args.project_dir}/camera_calibration/unrectified/database.db",
+    #     "--image_path", f"{args.images_dir}",
+    #     "--ImageReader.single_camera", "1",
+    #     "--ImageReader.default_focal_length_factor", "0.5",
+    #     "--ImageReader.camera_model", "OPENCV",
+    #     ]
     colmap_feature_extractor_args = [
         colmap_exe, "feature_extractor",
         "--database_path", f"{args.project_dir}/camera_calibration/unrectified/database.db",
         "--image_path", f"{args.images_dir}",
         "--ImageReader.single_camera", "1",
-        "--ImageReader.default_focal_length_factor", "0.5",
+        "--ImageReader.default_focal_length_factor", "1.2",
         "--ImageReader.camera_model", "OPENCV",
+        "--SiftExtraction.peak_threshold", "0.003",          # 降低峰值阈值
+        "--SiftExtraction.edge_threshold", "20",             # 过滤弱边缘响应
+        "--SiftExtraction.max_num_features", "65536",        # 增加最大特征数
+        "--SiftExtraction.first_octave", "-1"                # 检测更精细特征
         ]
     
     try:
@@ -116,13 +128,24 @@ if __name__ == '__main__':
 
     ## Generate sfm pointcloud
     print("generating sfm point cloud...")
+    # colmap_hierarchical_mapper_args = [
+    #     colmap_exe, "hierarchical_mapper",
+    #     "--database_path", f"{args.project_dir}/camera_calibration/unrectified/database.db",
+    #     "--image_path", f"{args.images_dir}",
+    #     "--output_path", f"{args.project_dir}/camera_calibration/unrectified/sparse",
+    #     "--Mapper.ba_global_function_tolerance", "0.000001" 
+    #     ]
+    # 优化后：放宽初始化条件
     colmap_hierarchical_mapper_args = [
         colmap_exe, "hierarchical_mapper",
         "--database_path", f"{args.project_dir}/camera_calibration/unrectified/database.db",
         "--image_path", f"{args.images_dir}",
         "--output_path", f"{args.project_dir}/camera_calibration/unrectified/sparse",
-        "--Mapper.ba_global_function_tolerance", "0.000001" 
-        ]
+        "--Mapper.init_min_num_inliers", "30",              # 降低初始化内点阈值
+        "--Mapper.abs_pose_min_num_inliers", "20",          # 允许更少绝对姿态内点
+        "--Mapper.ba_global_function_tolerance", "0.0001",  # 放宽全局BA收敛条件
+    ]
+    
     try:
         subprocess.run(colmap_hierarchical_mapper_args, check=True)
     except subprocess.CalledProcessError as e:

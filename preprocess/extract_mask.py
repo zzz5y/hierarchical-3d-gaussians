@@ -134,7 +134,15 @@ if __name__ == "__main__":
                 os.makedirs(vehicle_mask_dir)
         
         # 遍历每个文件夹（如 CAM_E, CAM_F, ...）
-        camera_dirs = ['CAM_A','CAM_B','CAM_C','CAM_D','CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
+        # zeer
+        #camera_dirs = ['CAM_B','CAM_D','CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
+        #camera_dirs = ['CAM_B','CAM_C', 'CAM_D', 'CAM_E', 'CAM_F']
+        
+        #cns
+        camera_dirs = ['CAM_BACK',       'CAM_BACK_RIGHT',  'CAM_FRONT_LEFT',
+                        'CAM_BACK_LEFT',  'CAM_FRONT',       'CAM_FRONT_RIGHT',
+                        ]
+        #camera_dirs = ['CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
         for cam_dir in camera_dirs:
             img_dir = os.path.join(img_base_dir, cam_dir)
             print(f"Processing images in: {img_dir}")
@@ -145,7 +153,8 @@ if __name__ == "__main__":
                 os.makedirs(cam_inputs_with_masks_dir)
             
             # 获取文件夹中的所有图像文件（假设图像是 .png 格式）
-            flist = sorted(glob(os.path.join(img_dir, '*.png')))  # 或者 '*.jpg' 根据文件格式调整
+            #flist = sorted(glob(os.path.join(img_dir, '*.png')))  # 或者 '*.jpg' 根据文件格式调整
+            flist = sorted(glob(os.path.join(img_dir, '*.jpg')))  # 或者 '*.jpg' 根据文件格式调整
             for fpath in tqdm(flist, f'scene[{scene_id}]'):
                 fbase = os.path.splitext(os.path.basename(os.path.normpath(fpath)))[0]
                 print('fbase: ', fbase)
@@ -226,7 +235,7 @@ if __name__ == "__main__":
                         orig_img = np.stack([orig_img] * 3, axis=-1)
 
                     # valid_all_mask 为 2D 布尔数组，扩展到3通道
-                    mask_3ch = np.stack([valid_all_mask] * 3, axis=-1)
+                    mask_3ch = np.stack([~valid_all_mask] * 3, axis=-1)
                     # 直接将交集区域设为黑色
                     overlay_img = orig_img.copy()
                     overlay_img[mask_3ch] = 0  # 黑色 [0, 0, 0]
