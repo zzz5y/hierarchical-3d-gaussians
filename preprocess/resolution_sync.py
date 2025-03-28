@@ -9,6 +9,15 @@ from PIL import Image
 import tempfile
 import json
 from datetime import datetime  # 添加在文件开头的导入部分
+import os
+import shutil
+import json
+import tempfile
+import piexif
+from glob import glob
+from datetime import datetime
+from tqdm import tqdm
+from PIL import Image
 
 def analyze_aspect_ratios(img_dirs):
     """ 分析场景中的宽高比分布（替换原有validate） """
@@ -161,6 +170,7 @@ def update_camera_params_v2(camera_dir, original_size, processed_size, mode='pad
         for k, v in params.items():
             f.write(f"{k}: {v:.6f}\n")
 
+'''
 def process_scene(scene_dir, rgb_dirname, camera_dirs):
     """ 兼容不同宽高比的场景处理（修复跨设备问题版） """
     # 在每个场景目录创建临时文件夹（可选）
@@ -266,7 +276,141 @@ def process_scene(scene_dir, rgb_dirname, camera_dirs):
         print(f"场景处理失败: {scene_dir} - {str(e)}")
         # 紧急清理临时文件
         shutil.rmtree(scene_temp_dir, ignore_errors=True)
+'''
+def process_scene(scene_dir, rgb_dirname, camera_dirs):
+    """ 兼容不同宽高比的场景处理（修复EXIF问题版） """
+    scene_temp_dir = os.path.join(scene_dir, '.processing_temp')
+    os.makedirs(scene_temp_dir, exist_ok=True)
 
+    img_dirs = [os.path.join(scene_dir, rgb_dirname, cam) 
+                for cam in camera_dirs 
+                if os.path.exists(os.path.join(scene_dir, rgb_dirname, cam))]
+    
+    if not img_dirs:
+        return
+
+    try:
+        aspect_stats = analyze_aspect_ratios(img_dirs)
+        print(f"场景 {os.path.basename(scene_dir)} 宽高比分布: {aspect_stats}")
+        strategy = 'median'
+        resize_mode = 'padding'
+        target_size = get_dynamic_target_size(img_dirs, strategy=strategy)
+        print(f"目标处理尺寸: {target_size} | 模式: {resize_mode}")
+
+        for cam_dir in img_dirs:
+            cam_temp_dir = os.path.join(cam_dir, '.process_temp')
+            os.makedirs(cam_temp_dir, exist_ok=True)
+
+            image_files = glob(os.path.join(cam_dir, '*.[jJ][pP][gG]')) + \
+                         glob(os.path.join(cam_dir, '*.[pP][nN][gG]'))
+            
+            if not image_files:
+                print(f"跳过空相机目录: {cam_dir}")
+                continue
+                
+            try:
+                with Image.open(image_files[0]) as img:
+                    original_size = img.size
+            except Exception as e:
+                print(f"无法获取初始尺寸: {cam_dir} - {str(e)}")
+                continue
+
+            for img_file in tqdm(image_files, desc=f'Processing {os.path.basename(cam_dir)}'):
+                try:
+                    base_name = os.path.splitext(os.path.basename(img_file))[0]
+                    new_filename = f"{base_name}.jpg"
+                    new_filepath = os.path.join(cam_dir, new_filename)
+                    
+                    with tempfile.NamedTemporaryFile(
+                        dir=cam_temp_dir,
+                        suffix='.jpg',
+                        delete=False
+                    ) as tmp_file:
+                        backup_original(img_file, os.path.join(cam_dir, 'backup'))
+                        
+                        with Image.open(img_file) as img:
+                            # 新增：处理透明通道
+                            if img.mode in ('RGBA', 'LA'):
+                                img = img.convert('RGB')
+                            
+                            # 强化EXIF处理逻辑
+                            exif_dict = {}
+                            try:
+                                exif_data = img.info.get('exif')
+                                if exif_data and isinstance(exif_data, bytes):
+                                    exif_dict = piexif.load(exif_data)
+                            except Exception as e:
+                                print(f"EXIF解析警告: {img_file} - {str(e)}")
+                            
+                            processed_img = adaptive_resize(img, target_size, mode=resize_mode)
+                            
+                            # 仅当有有效EXIF时更新
+                            if exif_dict:
+                                try:
+                                    exif_dict.setdefault('0th', {})
+                                    exif_dict.setdefault('Exif', {})
+                                    exif_dict['0th'][piexif.ImageIFD.ImageWidth] = processed_img.width
+                                    exif_dict['0th'][piexif.ImageIFD.ImageLength] = processed_img.height
+                                    exif_dict['Exif'][piexif.ExifIFD.PixelXDimension] = processed_img.width
+                                    exif_dict['Exif'][piexif.ExifIFD.PixelYDimension] = processed_img.height
+                                    exif_dict['0th'][piexif.ImageIFD.Orientation] = 1
+                                    exif_dict.pop('thumbnail', None)
+                                    new_exif = piexif.dump(exif_dict)
+                                except KeyError as e:
+                                    print(f"EXIF更新警告: {img_file} - {str(e)}")
+                                    new_exif = None
+                            else:
+                                new_exif = None
+                            
+                            # 保存逻辑
+                            save_args = {
+                                'format': 'JPEG',
+                                'quality': 95,
+                                'subsampling': 0
+                            }
+                            if new_exif:
+                                save_args['exif'] = new_exif
+                            
+                            processed_img.save(tmp_file, **save_args)
+
+                        # 文件替换逻辑保持不变
+                        try:
+                            os.replace(tmp_file.name, new_filepath)
+                            if img_file != new_filepath and os.path.exists(img_file):
+                                os.remove(img_file)
+                        except OSError as e:
+                            if e.errno == 18:
+                                shutil.copy2(tmp_file.name, new_filepath)
+                                os.remove(tmp_file.name)
+                                if img_file != new_filepath and os.path.exists(img_file):
+                                    os.remove(img_file)
+                            else:
+                                raise
+                            
+                except Exception as e:
+                    print(f"处理失败: {img_file} - {str(e)}")
+                    if 'tmp_file' in locals() and os.path.exists(tmp_file.name):
+                        try: os.remove(tmp_file.name) 
+                        except: pass
+
+            update_camera_params_v2(cam_dir, original_size, target_size, mode=resize_mode)
+            shutil.rmtree(cam_temp_dir, ignore_errors=True)
+
+        scene_config = {
+            'target_size': target_size,
+            'aspect_stats': aspect_stats,
+            'processing_time': datetime.now().isoformat(),
+            'device_id': os.stat(scene_dir).st_dev
+        }
+        with open(os.path.join(scene_dir, 'processing_meta.json'), 'w') as f:
+            json.dump(scene_config, f, indent=2)
+
+        shutil.rmtree(scene_temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        print(f"场景处理失败: {scene_dir} - {str(e)}")
+        shutil.rmtree(scene_temp_dir, ignore_errors=True)
+        
 if __name__ == "__main__":
     # ... [保留原有的参数解析代码]
     parser = ArgumentParser()
