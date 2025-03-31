@@ -19,7 +19,7 @@ services:
     volumes:
       - ${PWD}:/host
       #- ./data/:/data
-      - /data/zsy_data/h3dgs_data/data:/host/docker_data   # 将主机的实际路径挂载到容器内的 /data
+      # - /data/zsy_data/h3dgs_data/data:/host/docker_data   # 将主机的实际路径挂载到容器内的 /data
     ports:
       - "6009:6009"
     ipc: host

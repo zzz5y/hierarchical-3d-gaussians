@@ -170,113 +170,7 @@ def update_camera_params_v2(camera_dir, original_size, processed_size, mode='pad
         for k, v in params.items():
             f.write(f"{k}: {v:.6f}\n")
 
-'''
-def process_scene(scene_dir, rgb_dirname, camera_dirs):
-    """ 兼容不同宽高比的场景处理（修复跨设备问题版） """
-    # 在每个场景目录创建临时文件夹（可选）
-    scene_temp_dir = os.path.join(scene_dir, '.processing_temp')
-    os.makedirs(scene_temp_dir, exist_ok=True)
 
-    img_dirs = [os.path.join(scene_dir, rgb_dirname, cam) 
-                for cam in camera_dirs 
-                if os.path.exists(os.path.join(scene_dir, rgb_dirname, cam))]
-    
-    if not img_dirs:
-        return
-
-    try:
-        # 步骤1：分析场景特性
-        aspect_stats = analyze_aspect_ratios(img_dirs)
-        print(f"场景 {os.path.basename(scene_dir)} 宽高比分布: {aspect_stats}")
-
-        # 步骤2：动态确定处理策略
-        #strategy = 'max' if len(aspect_stats) == 1 else 'median'
-        strategy= 'median'
-        resize_mode = 'padding'
-
-        # 步骤3：确定目标尺寸
-        target_size = get_dynamic_target_size(img_dirs, strategy=strategy)
-        print(f"目标处理尺寸: {target_size} | 模式: {resize_mode}")
-
-        # 步骤4：处理每个相机
-        for cam_dir in img_dirs:
-            # 在相机目录创建专用临时文件夹
-            cam_temp_dir = os.path.join(cam_dir, '.process_temp')
-            os.makedirs(cam_temp_dir, exist_ok=True)
-
-            # 获取原始参数（带安全检查）
-            image_files = glob(os.path.join(cam_dir, '*.png'))
-            if not image_files:
-                print(f"跳过空相机目录: {cam_dir}")
-                continue
-                
-            try:
-                with Image.open(image_files[0]) as img:
-                    original_size = img.size
-            except Exception as e:
-                print(f"无法获取初始尺寸: {cam_dir} - {str(e)}")
-                continue
-
-            # 处理图像（带跨设备安全）
-            for img_file in tqdm(image_files, desc=f'Processing {os.path.basename(cam_dir)}'):
-                try:
-                    # 使用相机本地临时文件
-                    with tempfile.NamedTemporaryFile(
-                        dir=cam_temp_dir,  # 关键修改：确保同分区
-                        suffix='.png',
-                        delete=False
-                    ) as tmp_file:
-                        # 备份原始图像
-                        backup_original(img_file, os.path.join(cam_dir, 'backup'))
-                        
-                        # 处理图像
-                        with Image.open(img_file) as img:
-                            processed_img = adaptive_resize(img, target_size, mode=resize_mode)
-                            processed_img.save(tmp_file, format='PNG', quality=95, compress_level=3)
-                        
-                        # 跨设备安全替换
-                        try:
-                            os.replace(tmp_file.name, img_file)
-                        except OSError as e:
-                            if e.errno == 18:  # EXDEV: Cross-device link
-                                shutil.copy2(tmp_file.name, img_file)
-                                os.remove(tmp_file.name)
-                            else:
-                                raise
-                            
-                except Exception as e:
-                    print(f"处理失败: {img_file} - {str(e)}")
-                    # 清理残留临时文件
-                    if 'tmp_file' in locals() and os.path.exists(tmp_file.name):
-                        try:
-                            os.remove(tmp_file.name)
-                        except:
-                            pass
-
-            # 更新相机参数
-            update_camera_params_v2(cam_dir, original_size, target_size, mode=resize_mode)
-            
-            # 清理临时目录
-            shutil.rmtree(cam_temp_dir, ignore_errors=True)
-
-        # 保存场景配置
-        scene_config = {
-            'target_size': target_size,
-            'aspect_stats': aspect_stats,
-            'processing_time': datetime.now().isoformat(),
-            'device_id': os.stat(scene_dir).st_dev  # 记录存储设备ID
-        }
-        with open(os.path.join(scene_dir, 'processing_meta.json'), 'w') as f:
-            json.dump(scene_config, f, indent=2)
-
-        # 清理场景临时目录
-        shutil.rmtree(scene_temp_dir, ignore_errors=True)
-
-    except Exception as e:
-        print(f"场景处理失败: {scene_dir} - {str(e)}")
-        # 紧急清理临时文件
-        shutil.rmtree(scene_temp_dir, ignore_errors=True)
-'''
 def process_scene(scene_dir, rgb_dirname, camera_dirs):
     """ 兼容不同宽高比的场景处理（修复EXIF问题版） """
     scene_temp_dir = os.path.join(scene_dir, '.processing_temp')
@@ -410,7 +304,7 @@ def process_scene(scene_dir, rgb_dirname, camera_dirs):
     except Exception as e:
         print(f"场景处理失败: {scene_dir} - {str(e)}")
         shutil.rmtree(scene_temp_dir, ignore_errors=True)
-        
+
 if __name__ == "__main__":
     # ... [保留原有的参数解析代码]
     parser = ArgumentParser()

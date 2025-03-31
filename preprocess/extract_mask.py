@@ -25,6 +25,7 @@ Usage:
 
 from mmseg.apis import inference_segmentor, init_segmentor, show_result_pyplot
 from mmseg.core.evaluation import get_palette
+from PIL import Image
 
 semantic_classes = [
     'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
@@ -136,12 +137,15 @@ if __name__ == "__main__":
         # 遍历每个文件夹（如 CAM_E, CAM_F, ...）
         # zeer
         #camera_dirs = ['CAM_B','CAM_D','CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
+        
+        
+        camera_dirs = ['CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
         #camera_dirs = ['CAM_B','CAM_C', 'CAM_D', 'CAM_E', 'CAM_F']
         
         #cns
-        camera_dirs = ['CAM_BACK',       'CAM_BACK_RIGHT',  'CAM_FRONT_LEFT',
-                        'CAM_BACK_LEFT',  'CAM_FRONT',       'CAM_FRONT_RIGHT',
-                        ]
+        # camera_dirs = ['CAM_BACK',       'CAM_BACK_RIGHT',  'CAM_FRONT_LEFT',
+        #                 'CAM_BACK_LEFT',  'CAM_FRONT',       'CAM_FRONT_RIGHT',
+        #                 ]
         #camera_dirs = ['CAM_E', 'CAM_F', 'CAM_G', 'CAM_H', 'CAM_I', 'CAM_J']
         for cam_dir in camera_dirs:
             img_dir = os.path.join(img_base_dir, cam_dir)
@@ -241,5 +245,10 @@ if __name__ == "__main__":
                     overlay_img[mask_3ch] = 0  # 黑色 [0, 0, 0]
 
                     # 保存覆盖 mask 后的图像到 inputs_with_masks 对应摄像头文件夹
-                    output_path = os.path.join(cam_inputs_with_masks_dir, f"{fbase}.png")
-                    imageio.imwrite(output_path, overlay_img)
+                    # output_path = os.path.join(cam_inputs_with_masks_dir, f"{fbase}.png")
+                    # imageio.imwrite(output_path, overlay_img)
+                    
+                    # 保存覆盖掩码后的图像到 inputs_with_masks 对应摄像头文件夹，格式为JPEG
+                    # 使用 PIL 保存图像
+                    output_path = os.path.join(cam_inputs_with_masks_dir, f"{fbase}.jpg")
+                    Image.fromarray(overlay_img).save(output_path, format='JPEG')
